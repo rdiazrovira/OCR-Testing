@@ -1,6 +1,7 @@
 package com.example.ocr_testing;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -9,7 +10,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -24,25 +26,25 @@ import java.io.OutputStream;
 
 public class MainActivity extends AppCompatActivity {
 
-    private Button mCaptureButton, mExtractButton;
-    private ImageView mPictureImageView, mMicrCodesImageView;
-    private TextView mExtractedMicrCodesTextView;
-
+    private ImageButton mPictureImageButton;
+    private TextView mEmptyTextView;
+    private ImageView mMicrAreaImageView;
+    private EditText mAccountNumber, mRoutingNumber, mFinancialInstitutionNumber, mTransitNumber;
     private int mHeight, mWidth, mPaddingRL, mPaddingTB;
-    private String mDataPath = "";
 
     private Bitmap mPictureBitmap, mMicrCodesBitmap;
-
+    private String mDataPath = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mHeight = getIntent().getIntExtra("Height", 0);
-        mWidth = getIntent().getIntExtra("Width", 0);
-        mPaddingRL = getIntent().getIntExtra("PaddingRL", 0);
-        mPaddingTB = getIntent().getIntExtra("PaddingTB", 0);
+        SharedPreferences pref = getSharedPreferences("CAMERA_PREVIEW_DIMENSIONS", MODE_PRIVATE);
+        mHeight = pref.getInt("Height", 0);
+        mWidth = pref.getInt("Width", 0);
+        mPaddingRL = pref.getInt("PaddingRL", 0);
+        mPaddingTB = pref.getInt("PaddingTB", 0);
 
         mDataPath = getFilesDir() + "/tesseract/";
 
@@ -50,57 +52,128 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initView() {
-        mPictureImageView = findViewById(R.id.pictureImageView);
-        mCaptureButton = findViewById(R.id.imageCaptureButton);
-        mMicrCodesImageView = findViewById(R.id.micrCodesImageView);
-        mExtractedMicrCodesTextView = findViewById(R.id.extractedMicrCodesTextView);
-        mExtractButton = findViewById(R.id.extractMicrCodesButton);
-        loadCapturedPicture();
-        mCaptureButton.setOnClickListener(new View.OnClickListener() {
+        mPictureImageButton = findViewById(R.id.pictureImageButton);
+        mMicrAreaImageView = findViewById(R.id.micrCodeImageView);
+        mEmptyTextView = findViewById(R.id.emptyTextView);
+
+        mAccountNumber = findViewById(R.id.accountNumber);
+        mRoutingNumber = findViewById(R.id.routingNumber);
+        mFinancialInstitutionNumber = findViewById(R.id.financialInstitution);
+        mTransitNumber = findViewById(R.id.transitBranch);
+
+        mPictureBitmap = getPictureBitmap();
+        if (mPictureBitmap != null) {
+            mPictureImageButton.setImageBitmap(mPictureBitmap);
+        }
+
+        mMicrCodesBitmap = getMicrCodesBitmap();
+        if (mMicrCodesBitmap != null) {
+            mEmptyTextView.setVisibility(View.GONE);
+            mMicrAreaImageView.setImageBitmap(mMicrCodesBitmap);
+            mMicrAreaImageView.setVisibility(View.VISIBLE);
+            loadMicrCodesText();
+        }
+
+        mPictureImageButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 startActivity(new Intent(getApplicationContext(), CameraActivity.class));
                 finish();
             }
         });
-        mExtractButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (mMicrCodesBitmap != null) {
-                    loadMicrCodesText();
-                }
-            }
-        });
+    }
+
+    private Bitmap getPictureBitmap() {
+        // Get the path of the image
+        File file = new File(getExternalFilesDir(null), "pic.jpg");
+        String path = file.getAbsolutePath();
+
+        return BitmapFactory.decodeFile(path);
     }
 
     private void loadCapturedPicture() {
+
+        // Get the path of the image
         File file = new File(getExternalFilesDir(null), "pic.jpg");
-        mPictureBitmap = BitmapFactory.decodeFile(file.getAbsolutePath());
-        if (mPictureBitmap == null) {
-            return;
+        String path = file.getAbsolutePath();
+
+        mPictureBitmap = BitmapFactory.decodeFile(path);
+        if (mPictureBitmap != null) {
+            mPictureImageButton.setImageBitmap(mPictureBitmap);
         }
-        mPictureImageView.setImageBitmap(mPictureBitmap);
+
+        mMicrCodesBitmap = getMicrCodesBitmap();
+        if (mMicrCodesBitmap != null) {
+
+        }
+
+
+       /* mPictureImageButton.post(new Runnable() {
+            @Override
+            public void run() {
+                // Get the path of the image
+                File file = new File(getExternalFilesDir(null), "pic.jpg");
+                String path = file.getAbsolutePath();
+
+                // Get the dimensions of the View
+                int targetW = mPictureImageButton.getWidth();
+                int targetH = mPictureImageButton.getHeight();
+
+                // Get the dimensions of the bitmap
+                BitmapFactory.Options bmOptions = new BitmapFactory.Options();
+                bmOptions.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(path, bmOptions);
+                int photoW = bmOptions.outWidth;
+                int photoH = bmOptions.outHeight;
+
+                // Determine how much to scale down the image
+                int scaleFactor = Math.min(photoW / targetW, photoH / targetH);
+
+                // Decode the image file into a Bitmap sized to fill the View
+                bmOptions.inJustDecodeBounds = false;
+                bmOptions.inSampleSize = scaleFactor;
+                bmOptions.inPurgeable = true;
+
+                Bitmap bitmap = BitmapFactory.decodeFile(path, bmOptions);
+                if (bitmap != null) {
+                    mPictureImageButton.setImageBitmap(bitmap);
+                }
+
+                mPictureBitmap = BitmapFactory.decodeFile(path);
+                if (mPictureBitmap != null) {
+                    mMicrCodesBitmap = getMicrCodesBitmap();
+                    mMicrAreaImageView.setImageBitmap(mMicrCodesBitmap);
+                    mEmptyTextView.setVisibility(View.GONE);
+                    mMicrAreaImageView.setVisibility(View.VISIBLE);
+                    loadMicrCodesText();
+                }
+            }
+        });*/
     }
 
     private void loadMicrCodesText() {
         String micrCodesText = getMicrCodesText();
-        String result = "";
-        if (String.valueOf(micrCodesText.charAt(0)).equals("a")) {
-            result = getRoutingNumber(micrCodesText) + "; " + getAccountNumber(micrCodesText);
-        } else if (String.valueOf(micrCodesText.charAt(0)).equals("c")) {
-            result = getTransitNumber(micrCodesText) + "; "
-                    + getFinancialInstitutionNumber(micrCodesText) + "; "
-                    + getCanadianAccountNumber(micrCodesText);
+        if (micrCodesText.length() == 0 || micrCodesText == null) {
+            return;
         }
-        result = result.equals("") ? "Error trying to extract Micr Codes from the captured picture." : result;
-        mExtractedMicrCodesTextView.setText(result);
+        if (String.valueOf(micrCodesText.charAt(0)).equals("a")) {
+            mAccountNumber.setText(getAccountNumber(micrCodesText));
+            mRoutingNumber.setText(getRoutingNumber(micrCodesText));
+            return;
+        }
+        if (String.valueOf(micrCodesText.charAt(0)).equals("c")) {
+            mTransitNumber.setText(getTransitNumber(micrCodesText));
+            mFinancialInstitutionNumber.setText(getFinancialInstitutionNumber(micrCodesText));
+            mTransitNumber.setText(getCanadianAccountNumber(micrCodesText));
+            return;
+        }
+        Log.v("RESULT", "Error trying to extract Micr Codes from the captured picture.");
     }
 
     private String getMicrCodesText() {
         checkFile(new File(mDataPath + "tessdata/"), "mcr");
         TessBaseAPI tess = new TessBaseAPI();
         tess.init(mDataPath, "mcr");
-        Bitmap image = BitmapFactory.decodeResource(getResources(), R.drawable.micr2);
         tess.setImage(mMicrCodesBitmap);
         String result = tess.getUTF8Text();
         result = result.replace(" ", "");
@@ -262,10 +335,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onResume() {
-        mMicrCodesBitmap = getMicrCodesBitmap();
-        if (mMicrCodesBitmap != null) {
-            mMicrCodesImageView.setImageBitmap(mMicrCodesBitmap);
-        }
         super.onResume();
     }
 
@@ -276,7 +345,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         //Width and height of the layout
-        Log.v("METRICS", " layoutWidth: " + mWidth + " layoutHeight: " + mHeight);
+        Log.v("METRICS", " layoutWidth: " + mWidth + " layoutHeight: " + mHeight + " layoutPaddingRL: " + mPaddingRL + " layoutPaddingTB: " + mPaddingTB);
 
         //Width and height of the full image
         int fullImgWidth = mPictureBitmap.getWidth();
@@ -297,12 +366,14 @@ public class MainActivity extends AppCompatActivity {
         Log.v("METRICS", "imgWidth: " + imgWidth + " imgHeight: " + imgHeight);
 
         int x = paddingRL;
-        double aux = (imgHeight * 0.8);
+        double aux = (imgHeight * 0.75) + paddingTB;
+
         int y = (int) aux;
 
-        aux = imgHeight * 0.1;
+        aux = imgHeight * 0.2;
 
-        Log.v("METRICS", "x: " + x + " y: " + (int) aux);
+        Log.v("METRICS", "x: " + x + " y: " + y);
+        Log.v("METRICS", "Aux: " + aux);
 
         return Bitmap.createBitmap(mPictureBitmap, x, y, imgWidth, (int) aux);
     }

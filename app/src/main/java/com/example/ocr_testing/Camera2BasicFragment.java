@@ -24,6 +24,7 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.ImageFormat;
@@ -76,6 +77,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+
+import static android.content.Context.MODE_PRIVATE;
 
 public class Camera2BasicFragment extends Fragment
         implements View.OnTouchListener, ActivityCompat.OnRequestPermissionsResultCallback {
@@ -883,12 +886,13 @@ public class Camera2BasicFragment extends Fragment
         mLinearLayout.post(new Runnable() {
             @Override
             public void run() {
+                SharedPreferences.Editor editor = getActivity()
+                        .getSharedPreferences("CAMERA_PREVIEW_DIMENSIONS", MODE_PRIVATE).edit();
+                editor.putInt("Height", mLinearLayout.getHeight()).commit();
+                editor.putInt("Width", mLinearLayout.getWidth()).commit();
+                editor.putInt("PaddingRL", mLinearLayout.getPaddingLeft()).commit();
+                editor.putInt("PaddingTB", mLinearLayout.getPaddingBottom()).commit();
                 Intent intent = new Intent(getContext(), MainActivity.class);
-                Log.v("startActivity()", "" + mLinearLayout.getWidth());
-                intent.putExtra("Height", mLinearLayout.getHeight());
-                intent.putExtra("Width", mLinearLayout.getWidth());
-                intent.putExtra("PaddingRL", mLinearLayout.getPaddingLeft());
-                intent.putExtra("PaddingTB", mLinearLayout.getPaddingRight());
                 startActivity(intent);
             }
         });
