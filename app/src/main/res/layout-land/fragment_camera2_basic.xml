@@ -62,7 +62,7 @@
                 android:id="@+id/middle_border"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="0.6"
+                android:layout_weight="0.65"
                 android:background="@android:color/transparent"
                 android:orientation="horizontal"/>
 
@@ -70,7 +70,7 @@
                 android:id="@+id/low_border"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="0.2"
+                android:layout_weight="0.15"
                 android:background="@drawable/low_border"
                 android:orientation="horizontal">
 

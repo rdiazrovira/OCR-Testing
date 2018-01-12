@@ -894,6 +894,7 @@ public class Camera2BasicFragment extends Fragment
                 editor.putInt("PaddingTB", mLinearLayout.getPaddingBottom()).commit();
                 Intent intent = new Intent(getContext(), MainActivity.class);
                 startActivity(intent);
+                getActivity().finish();
             }
         });
     }

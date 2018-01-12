@@ -1,10 +1,15 @@
 package com.example.ocr_testing;
 
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Paint;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -32,7 +37,6 @@ public class MainActivity extends AppCompatActivity {
     private EditText mAccountNumber, mRoutingNumber, mFinancialInstitutionNumber, mTransitNumber;
     private int mHeight, mWidth, mPaddingRL, mPaddingTB;
 
-    private Bitmap mPictureBitmap, mMicrCodesBitmap;
     private String mDataPath = "";
 
     @Override
@@ -51,6 +55,33 @@ public class MainActivity extends AppCompatActivity {
         initView();
     }
 
+    private interface OnCapturedPictureListener {
+        void onPicturePreviewDone(Bitmap picturePreview);
+
+        void onFinishedCapture(Bitmap picture);
+    }
+
+    private OnCapturedPictureListener mPictureListener = new OnCapturedPictureListener() {
+        @Override
+        public void onPicturePreviewDone(Bitmap picturePreview) {
+            mPictureImageButton.setImageBitmap(picturePreview);
+        }
+
+        @Override
+        public void onFinishedCapture(Bitmap picture) {
+
+            mPictureImageButton.setImageBitmap(picture);
+
+            Bitmap micrCodesBitmap = getMicrCodesBitmapFrom(picture);
+            if (micrCodesBitmap != null) {
+                mEmptyTextView.setVisibility(View.GONE);
+                mMicrAreaImageView.setImageBitmap(micrCodesBitmap);
+                mMicrAreaImageView.setVisibility(View.VISIBLE);
+                loadMicrCodesText(micrCodesBitmap);
+            }
+        }
+    };
+
     private void initView() {
         mPictureImageButton = findViewById(R.id.pictureImageButton);
         mMicrAreaImageView = findViewById(R.id.micrCodeImageView);
@@ -61,19 +92,6 @@ public class MainActivity extends AppCompatActivity {
         mFinancialInstitutionNumber = findViewById(R.id.financialInstitution);
         mTransitNumber = findViewById(R.id.transitBranch);
 
-        mPictureBitmap = getPictureBitmap();
-        if (mPictureBitmap != null) {
-            mPictureImageButton.setImageBitmap(mPictureBitmap);
-        }
-
-        mMicrCodesBitmap = getMicrCodesBitmap();
-        if (mMicrCodesBitmap != null) {
-            mEmptyTextView.setVisibility(View.GONE);
-            mMicrAreaImageView.setImageBitmap(mMicrCodesBitmap);
-            mMicrAreaImageView.setVisibility(View.VISIBLE);
-            loadMicrCodesText();
-        }
-
         mPictureImageButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -81,6 +99,8 @@ public class MainActivity extends AppCompatActivity {
                 finish();
             }
         });
+
+        loadCapturedPicture();
     }
 
     private Bitmap getPictureBitmap() {
@@ -93,27 +113,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadCapturedPicture() {
 
-        // Get the path of the image
-        File file = new File(getExternalFilesDir(null), "pic.jpg");
-        String path = file.getAbsolutePath();
-
-        mPictureBitmap = BitmapFactory.decodeFile(path);
-        if (mPictureBitmap != null) {
-            mPictureImageButton.setImageBitmap(mPictureBitmap);
-        }
-
-        mMicrCodesBitmap = getMicrCodesBitmap();
-        if (mMicrCodesBitmap != null) {
-
-        }
-
-
-       /* mPictureImageButton.post(new Runnable() {
+        mPictureImageButton.post(new Runnable() {
             @Override
             public void run() {
                 // Get the path of the image
                 File file = new File(getExternalFilesDir(null), "pic.jpg");
                 String path = file.getAbsolutePath();
+
+                //Get captured picture
+                Bitmap picture = BitmapFactory.decodeFile(path);
+                if (picture != null) {
+                    mPictureListener.onFinishedCapture(picture);
+                }
 
                 // Get the dimensions of the View
                 int targetW = mPictureImageButton.getWidth();
@@ -136,23 +147,14 @@ public class MainActivity extends AppCompatActivity {
 
                 Bitmap bitmap = BitmapFactory.decodeFile(path, bmOptions);
                 if (bitmap != null) {
-                    mPictureImageButton.setImageBitmap(bitmap);
-                }
-
-                mPictureBitmap = BitmapFactory.decodeFile(path);
-                if (mPictureBitmap != null) {
-                    mMicrCodesBitmap = getMicrCodesBitmap();
-                    mMicrAreaImageView.setImageBitmap(mMicrCodesBitmap);
-                    mEmptyTextView.setVisibility(View.GONE);
-                    mMicrAreaImageView.setVisibility(View.VISIBLE);
-                    loadMicrCodesText();
+                    mPictureListener.onPicturePreviewDone(bitmap);
                 }
             }
-        });*/
+        });
     }
 
-    private void loadMicrCodesText() {
-        String micrCodesText = getMicrCodesText();
+    private void loadMicrCodesText(Bitmap src) {
+        String micrCodesText = getMicrCodesTextFrom(src);
         if (micrCodesText.length() == 0 || micrCodesText == null) {
             return;
         }
@@ -170,11 +172,11 @@ public class MainActivity extends AppCompatActivity {
         Log.v("RESULT", "Error trying to extract Micr Codes from the captured picture.");
     }
 
-    private String getMicrCodesText() {
+    private String getMicrCodesTextFrom(Bitmap src) {
         checkFile(new File(mDataPath + "tessdata/"), "mcr");
         TessBaseAPI tess = new TessBaseAPI();
         tess.init(mDataPath, "mcr");
-        tess.setImage(mMicrCodesBitmap);
+        tess.setImage(src);
         String result = tess.getUTF8Text();
         result = result.replace(" ", "");
         result = result.replace("\n", "");
@@ -190,8 +192,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (dir.exists()) {
-            String datafilepath = mDataPath + "/tessdata/" + name + ".traineddata";
-            File datafile = new File(datafilepath);
+            String dataFilePath = mDataPath + "/tessdata/" + name + ".traineddata";
+            File datafile = new File(dataFilePath);
             if (!datafile.exists()) {
                 copyFiles(name);
             }
@@ -339,8 +341,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Nullable
-    private Bitmap getMicrCodesBitmap() {
-        if (mPictureBitmap == null || mWidth == 0 || mHeight == 0) {
+    private Bitmap getMicrCodesBitmapFrom(Bitmap picture) {
+        if (picture == null || mWidth == 0 || mHeight == 0) {
             return null;
         }
 
@@ -348,8 +350,8 @@ public class MainActivity extends AppCompatActivity {
         Log.v("METRICS", " layoutWidth: " + mWidth + " layoutHeight: " + mHeight + " layoutPaddingRL: " + mPaddingRL + " layoutPaddingTB: " + mPaddingTB);
 
         //Width and height of the full image
-        int fullImgWidth = mPictureBitmap.getWidth();
-        int fullImgHeight = mPictureBitmap.getHeight();
+        int fullImgWidth = picture.getWidth();
+        int fullImgHeight = picture.getHeight();
 
         Log.v("METRICS", " w: " + fullImgWidth + " h: " + fullImgHeight);
 
@@ -367,15 +369,34 @@ public class MainActivity extends AppCompatActivity {
 
         int x = paddingRL;
         double aux = (imgHeight * 0.75) + paddingTB;
-
         int y = (int) aux;
 
-        aux = imgHeight * 0.2;
+        aux = imgHeight * 0.15;
+        imgHeight = (int) aux;
 
         Log.v("METRICS", "x: " + x + " y: " + y);
-        Log.v("METRICS", "Aux: " + aux);
+        picture = test(picture, getApplicationContext());
 
-        return Bitmap.createBitmap(mPictureBitmap, x, y, imgWidth, (int) aux);
+        return Bitmap.createBitmap(picture, x, y, imgWidth, imgHeight);
+    }
+
+    public static Bitmap test(Bitmap src, Context context) {
+        ColorMatrix colorMatrix = new ColorMatrix();
+        colorMatrix.setSaturation(0);
+
+        ColorMatrixColorFilter colorMatrixFilter = new ColorMatrixColorFilter(
+                colorMatrix);
+
+        Bitmap blackAndWhiteBitmap = src.copy(
+                Bitmap.Config.ARGB_8888, true);
+
+        Paint paint = new Paint();
+        paint.setColorFilter(colorMatrixFilter);
+
+        Canvas canvas = new Canvas(blackAndWhiteBitmap);
+        canvas.drawBitmap(blackAndWhiteBitmap, 0, 0, paint);
+
+        return blackAndWhiteBitmap;
     }
 }
 
