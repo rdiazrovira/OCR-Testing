@@ -15,10 +15,12 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.googlecode.tesseract.android.TessBaseAPI;
 
@@ -31,11 +33,13 @@ import java.io.OutputStream;
 
 public class MainActivity extends AppCompatActivity {
 
+    public static final String language = "mcr";
     private ImageButton mPictureImageButton;
     private TextView mEmptyTextView;
     private ImageView mMicrAreaImageView;
-    private EditText mAccountNumber, mRoutingNumber, mFinancialInstitutionNumber, mTransitNumber;
+    private EditText mAccountNumber, mRoutingNumber, mFinancialInstitutionNumber, mTransitNumber, mExtractedNumber;
     private int mHeight, mWidth, mPaddingRL, mPaddingTB;
+    private Button mFullImageViewButton;
 
     private String mDataPath = "";
 
@@ -71,7 +75,6 @@ public class MainActivity extends AppCompatActivity {
         public void onFinishedCapture(Bitmap picture) {
 
             mPictureImageButton.setImageBitmap(picture);
-
             Bitmap micrCodesBitmap = getMicrCodesBitmapFrom(picture);
             if (micrCodesBitmap != null) {
                 mEmptyTextView.setVisibility(View.GONE);
@@ -86,11 +89,21 @@ public class MainActivity extends AppCompatActivity {
         mPictureImageButton = findViewById(R.id.pictureImageButton);
         mMicrAreaImageView = findViewById(R.id.micrCodeImageView);
         mEmptyTextView = findViewById(R.id.emptyTextView);
+        mExtractedNumber = findViewById(R.id.extractedNumber);
 
         mAccountNumber = findViewById(R.id.accountNumber);
         mRoutingNumber = findViewById(R.id.routingNumber);
         mFinancialInstitutionNumber = findViewById(R.id.financialInstitution);
         mTransitNumber = findViewById(R.id.transitBranch);
+
+        mFullImageViewButton = findViewById(R.id.fullImageViewButton);
+
+        mFullImageViewButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(getApplicationContext(), PictureViewerActivity.class));
+            }
+        });
 
         mPictureImageButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -101,14 +114,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         loadCapturedPicture();
-    }
-
-    private Bitmap getPictureBitmap() {
-        // Get the path of the image
-        File file = new File(getExternalFilesDir(null), "pic.jpg");
-        String path = file.getAbsolutePath();
-
-        return BitmapFactory.decodeFile(path);
     }
 
     private void loadCapturedPicture() {
@@ -156,6 +161,9 @@ public class MainActivity extends AppCompatActivity {
     private void loadMicrCodesText(Bitmap src) {
         String micrCodesText = getMicrCodesTextFrom(src);
         if (micrCodesText.length() == 0 || micrCodesText == null) {
+            Log.v("RESULT", "Error trying to extract Micr Codes from the captured picture.");
+            Toast.makeText(getApplicationContext(), "Error trying to extract Micr Codes from " +
+                    "the captured picture.", Toast.LENGTH_LONG);
             return;
         }
         if (String.valueOf(micrCodesText.charAt(0)).equals("a")) {
@@ -166,18 +174,21 @@ public class MainActivity extends AppCompatActivity {
         if (String.valueOf(micrCodesText.charAt(0)).equals("c")) {
             mTransitNumber.setText(getTransitNumber(micrCodesText));
             mFinancialInstitutionNumber.setText(getFinancialInstitutionNumber(micrCodesText));
-            mTransitNumber.setText(getCanadianAccountNumber(micrCodesText));
+            mAccountNumber.setText(getCanadianAccountNumber(micrCodesText));
             return;
         }
-        Log.v("RESULT", "Error trying to extract Micr Codes from the captured picture.");
+        mAccountNumber.setText(getAccountNumber(micrCodesText));
+        mRoutingNumber.setText(getRoutingNumber(micrCodesText));
+        mExtractedNumber.setText(micrCodesText);
     }
 
     private String getMicrCodesTextFrom(Bitmap src) {
-        checkFile(new File(mDataPath + "tessdata/"), "mcr");
+        checkFile(new File(mDataPath + "tessdata/"), language);
         TessBaseAPI tess = new TessBaseAPI();
-        tess.init(mDataPath, "mcr");
+        tess.init(mDataPath, language);
         tess.setImage(src);
         String result = tess.getUTF8Text();
+        Log.v("Result", result);
         result = result.replace(" ", "");
         result = result.replace("\n", "");
         result = result.trim();
@@ -375,7 +386,6 @@ public class MainActivity extends AppCompatActivity {
         imgHeight = (int) aux;
 
         Log.v("METRICS", "x: " + x + " y: " + y);
-        picture = test(picture, getApplicationContext());
 
         return Bitmap.createBitmap(picture, x, y, imgWidth, imgHeight);
     }
